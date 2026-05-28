@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fingerprint POC</title>
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      margin-top: 100px;
+    }
+    button {
+      padding: 15px 30px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🔐 Fingerprint Login (POC)</h2>
+  <button onclick="authenticate()">Login with Fingerprint</button>
+
+  <div id="status"></div>
+
+  <script>
+    async function authenticate() {
+      const status = document.getElementById("status");
+
+      if (!window.PublicKeyCredential) {
+        status.innerText = "❌ WebAuthn not supported";
+        return;
+      }
+
+      try {
+        const publicKey = {
+          challenge: new Uint8Array(32),
+          timeout: 60000,
+          userVerification: "required"
+        };
+
+        status.innerText = "👉 Touch fingerprint sensor...";
+
+        const result = await navigator.credentials.get({ publicKey });
+
+        console.log(result);
+        status.innerText = "✅ Authentication successful!";
+      } catch (err) {
+        console.error(err);
+        status.innerText = "❌ Authentication failed / cancelled";
+      }
+    }
+  </script>
+
+</body>
+</html>
