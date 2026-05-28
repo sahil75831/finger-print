@@ -6,40 +6,113 @@
     body {
       font-family: Arial;
       text-align: center;
-      margin-top: 100px;
+      margin-top: 50px;
     }
     button {
-      padding: 15px 30px;
-      font-size: 18px;
+      padding: 10px 20px;
+      margin: 10px;
       cursor: pointer;
     }
-    #status {
+    .tab {
+      display: none;
       margin-top: 20px;
-      font-weight: bold;
+    }
+    .active {
+      display: block;
     }
   </style>
 </head>
 <body>
 
-  <h2>🔐 Fingerprint Login (POC)</h2>
-  <button onclick="authenticate()">Login with Fingerprint</button>
+  <h2>🔐 Fingerprint (Passkey) POC</h2>
 
-  <div id="status"></div>
+  <!-- Tabs -->
+  <button onclick="showTab('register')">Register</button>
+  <button onclick="showTab('login')">Verify</button>
+
+  <!-- Register Tab -->
+  <div id="register" class="tab active">
+    <h3>Register Fingerprint</h3>
+    <button onclick="register()">Register</button>
+  </div>
+
+  <!-- Login Tab -->
+  <div id="login" class="tab">
+    <h3>Verify Fingerprint</h3>
+    <button onclick="login()">Verify</button>
+    <p id="status"></p>
+  </div>
 
   <script>
-    async function authenticate() {
-      const status = document.getElementById("status");
+    function showTab(tabId) {
+      document.getElementById('register').classList.remove('active');
+      document.getElementById('login').classList.remove('active');
+      document.getElementById(tabId).classList.add('active');
+    }
 
-      if (!window.PublicKeyCredential) {
-        status.innerText = "❌ WebAuthn not supported";
+    function bufferToBase64(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    }
+
+    function base64ToBuffer(base64) {
+      const binary = atob(base64);
+      const buffer = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        buffer[i] = binary.charCodeAt(i);
+      }
+      return buffer;
+    }
+
+    async function register() {
+      try {
+        const publicKey = {
+          challenge: new Uint8Array(32),
+          rp: { name: "POC App" },
+          user: {
+            id: new Uint8Array(16),
+            name: "user@test.com",
+            displayName: "User"
+          },
+          pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required"
+          },
+          timeout: 60000
+        };
+
+        const credential = await navigator.credentials.create({ publicKey });
+
+        const id = bufferToBase64(credential.rawId);
+        localStorage.setItem("credId", id);
+
+        alert("✅ Fingerprint Registered!");
+      } catch (err) {
+        console.error(err);
+        alert("❌ Registration failed");
+      }
+    }
+
+    async function login() {
+      const status = document.getElementById("status");
+      const storedId = localStorage.getItem("credId");
+
+      if (!storedId) {
+        status.innerText = "❌ Please register first";
         return;
       }
 
       try {
         const publicKey = {
           challenge: new Uint8Array(32),
-          timeout: 60000,
-          userVerification: "required"
+          allowCredentials: [
+            {
+              id: base64ToBuffer(storedId),
+              type: "public-key"
+            }
+          ],
+          userVerification: "required",
+          timeout: 60000
         };
 
         status.innerText = "👉 Touch fingerprint sensor...";
@@ -47,10 +120,10 @@
         const result = await navigator.credentials.get({ publicKey });
 
         console.log(result);
-        status.innerText = "✅ Authentication successful!";
+        status.innerText = "✅ Verified Successfully!";
       } catch (err) {
         console.error(err);
-        status.innerText = "❌ Authentication failed / cancelled";
+        status.innerText = "❌ Verification failed";
       }
     }
   </script>
