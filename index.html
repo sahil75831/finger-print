@@ -1,241 +1,202 @@
 <!DOCTYPE html>
-<html>
+
+<html lang="en">
 <head>
-  <title>Passkey Subscription POC</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fingerprint POC</title>
+
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-
-    .container {
-      width: 350px;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-      overflow: hidden;
-      text-align: center;
-    }
-
-    .header {
-      background: linear-gradient(45deg, #6a11cb, #2575fc);
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #0f172a;
       color: white;
-      padding: 20px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tabs {
+      display: flex;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 18px;
+      text-align: center;
+      background: #1e293b;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .tab.active {
+      background: #22c55e;
+      color: black;
       font-weight: bold;
     }
 
     .content {
+      flex: 1;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
       padding: 20px;
+      text-align: center;
     }
 
-    .card {
-      background: #111;
-      color: white;
-      border-radius: 12px;
-      padding: 20px;
-      margin: 20px 0;
-      border: 2px solid #4CAF50;
+    .content.active {
+      display: flex;
     }
 
-    .price {
-      font-size: 28px;
-      margin: 10px 0;
+    h2 {
+      margin-bottom: 20px;
     }
 
     button {
       width: 100%;
-      padding: 14px;
+      max-width: 400px;
+      padding: 18px;
+      font-size: 18px;
+      border-radius: 12px;
       border: none;
-      border-radius: 10px;
-      font-size: 16px;
       cursor: pointer;
-      margin-top: 10px;
     }
 
-    .primary {
-      background: #f5a623;
-      color: white;
-      font-weight: bold;
+    .register-btn {
+      background: #f59e0b;
+      color: black;
     }
 
-    .secondary {
-      background: #4CAF50;
-      color: white;
+    .verify-btn {
+      background: #22c55e;
+      color: black;
     }
 
-    .tabs button {
-      width: 50%;
-      border-radius: 0;
-      background: #eee;
+    #result {
+      margin-top: 20px;
+      font-size: 18px;
     }
-
-    .activeTab {
-      background: #ddd;
-      font-weight: bold;
-    }
-
-    .tab {
-      display: none;
-    }
-
-    .show {
-      display: block;
-    }
-
-    .status {
-      margin-top: 10px;
-      font-weight: bold;
-    }
-
-    .success { color: green; }
-    .error { color: red; }
   </style>
+
 </head>
+
 <body>
 
-<div class="container">
-
-  <div class="header">
-    🔐 Hausa Basics Audio
-  </div>
-
   <!-- Tabs -->
+
   <div class="tabs">
-    <button id="tab1Btn" class="activeTab" onclick="switchTab(1)">Subscribe</button>
-    <button id="tab2Btn" onclick="switchTab(2)">Confirm</button>
+    <div class="tab active" onclick="switchTab('register')" id="tab-register">Register</div>
+    <div class="tab" onclick="switchTab('verify')" id="tab-verify">Verify</div>
   </div>
 
-  <!-- TAB 1 -->
-  <div id="tab1" class="content tab show">
-    <h3>Choose Your Pack</h3>
+  <!-- Register Tab -->
 
-    <div class="card">
-      <div>WEEKLY</div>
-      <div class="price">₦150</div>
-      <div>per week</div>
-    </div>
-
-    <button class="primary" onclick="register()">
-      Subscribe with Fingerprint
-    </button>
-
-    <div id="registerStatus" class="status"></div>
+  <div id="register" class="content active">
+    <h2>Register Fingerprint</h2>
+    <button class="register-btn" onclick="register()">Touch Fingerprint</button>
   </div>
 
-  <!-- TAB 2 -->
-  <div id="tab2" class="content tab">
-    <h3>Confirm Subscription</h3>
+  <!-- Verify Tab -->
 
-    <button class="secondary" onclick="verify()">
-      Confirm with Fingerprint
-    </button>
-
-    <div id="verifyStatus" class="status"></div>
+  <div id="verify" class="content">
+    <h2>Verify Fingerprint</h2>
+    <button class="verify-btn" onclick="verify()">Confirm</button>
+    <div id="result"></div>
   </div>
-
-</div>
 
 <script>
-  function switchTab(tab) {
-    document.getElementById("tab1").classList.remove("show");
-    document.getElementById("tab2").classList.remove("show");
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
 
-    document.getElementById("tab1Btn").classList.remove("activeTab");
-    document.getElementById("tab2Btn").classList.remove("activeTab");
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById(tab).classList.add('active');
+}
 
-    if (tab === 1) {
-      document.getElementById("tab1").classList.add("show");
-      document.getElementById("tab1Btn").classList.add("activeTab");
-    } else {
-      document.getElementById("tab2").classList.add("show");
-      document.getElementById("tab2Btn").classList.add("activeTab");
-    }
+// REGISTER FLOW
+async function register() {
+  try {
+    const publicKey = {
+      challenge: new Uint8Array(32),
+
+      rp: {
+        name: "Demo App"
+      },
+
+      user: {
+        id: new Uint8Array(16),
+        name: "user@test.com",
+        displayName: "User"
+      },
+
+      pubKeyCredParams: [
+        { type: "public-key", alg: -7 }
+      ],
+
+      authenticatorSelection: {
+        authenticatorAttachment: "platform",
+        userVerification: "required"
+      },
+
+      timeout: 60000,
+      attestation: "none"
+    };
+
+    const credential = await navigator.credentials.create({ publicKey });
+
+    const credId = btoa(
+      String.fromCharCode(...new Uint8Array(credential.rawId))
+    );
+
+    localStorage.setItem("credId", credId);
+
+    alert("✅ Fingerprint Registered");
+
+    // AUTO SWITCH
+    switchTab('verify');
+
+  } catch (err) {
+    alert("❌ " + err.message);
   }
+}
 
-  function bufferToBase64(buffer) {
-    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
-  }
+// VERIFY FLOW
+async function verify() {
+  try {
+    const stored = localStorage.getItem("credId");
 
-  function base64ToBuffer(base64) {
-    const binary = atob(base64);
-    const buffer = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      buffer[i] = binary.charCodeAt(i);
-    }
-    return buffer;
-  }
-
-  async function register() {
-    const status = document.getElementById("registerStatus");
-
-    try {
-      const publicKey = {
-        challenge: new Uint8Array(32),
-        rp: { name: "Subscription App" },
-        user: {
-          id: new Uint8Array(16),
-          name: "user@test.com",
-          displayName: "User"
-        },
-        pubKeyCredParams: [{ type: "public-key", alg: -7 }],
-        authenticatorSelection: {
-          authenticatorAttachment: "platform",
-          userVerification: "required"
-        }
-      };
-
-      status.innerText = "👉 Touch fingerprint sensor...";
-
-      const credential = await navigator.credentials.create({ publicKey });
-
-      const id = bufferToBase64(credential.rawId);
-      localStorage.setItem("credId", id);
-
-      status.className = "status success";
-      status.innerText = "✅ Subscription Activated!";
-    } catch (err) {
-      console.error(err);
-      status.className = "status error";
-      status.innerText = "❌ Failed";
-    }
-  }
-
-  async function verify() {
-    const status = document.getElementById("verifyStatus");
-    const storedId = localStorage.getItem("credId");
-
-    if (!storedId) {
-      status.className = "status error";
-      status.innerText = "❌ No subscription found";
+    if (!stored) {
+      alert("No credential found");
       return;
     }
 
-    try {
-      const publicKey = {
-        challenge: new Uint8Array(32),
-        allowCredentials: [{
-          id: base64ToBuffer(storedId),
+    const publicKey = {
+      challenge: new Uint8Array(32),
+
+      allowCredentials: [
+        {
+          id: Uint8Array.from(atob(stored), c => c.charCodeAt(0)),
           type: "public-key"
-        }],
-        userVerification: "required"
-      };
+        }
+      ],
 
-      status.innerText = "👉 Verify fingerprint...";
+      userVerification: "required",
+      timeout: 60000
+    };
 
-      await navigator.credentials.get({ publicKey });
+    await navigator.credentials.get({ publicKey });
 
-      status.className = "status success";
-      status.innerText = "✅ Verified Successfully!";
-    } catch (err) {
-      console.error(err);
-      status.className = "status error";
-      status.innerText = "❌ Verification Failed";
-    }
+    document.getElementById("result").innerText = "✅ Verified Successfully";
+
+  } catch (err) {
+    document.getElementById("result").innerText = "❌ Verification Failed";
   }
+}
 </script>
 
 </body>
