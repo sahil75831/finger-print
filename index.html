@@ -1,132 +1,224 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Fingerprint POC</title>
+  <title>Passkey POC</title>
   <style>
     body {
-      font-family: Arial;
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      width: 350px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
       text-align: center;
-      margin-top: 50px;
     }
+
+    h2 {
+      margin-bottom: 10px;
+    }
+
+    p {
+      color: #555;
+      font-size: 14px;
+    }
+
     button {
-      padding: 10px 20px;
-      margin: 10px;
+      padding: 12px;
+      margin-top: 15px;
+      width: 100%;
+      border: none;
+      border-radius: 8px;
       cursor: pointer;
+      font-size: 15px;
     }
+
+    .primary {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .secondary {
+      background: #ddd;
+    }
+
     .tab {
       display: none;
-      margin-top: 20px;
     }
+
     .active {
       display: block;
+    }
+
+    .status {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    .success { color: green; }
+    .error { color: red; }
+    .info { color: #333; }
+
+    .top-buttons button {
+      width: auto;
+      margin: 5px;
     }
   </style>
 </head>
 <body>
 
-  <h2>🔐 Fingerprint (Passkey) POC</h2>
+<div class="card">
+  <h2>🔐 Passkey POC</h2>
+  <p id="support"></p>
 
-  <!-- Tabs -->
-  <button onclick="showTab('register')">Register</button>
-  <button onclick="showTab('login')">Verify</button>
-
-  <!-- Register Tab -->
-  <div id="register" class="tab active">
-    <h3>Register Fingerprint</h3>
-    <button onclick="register()">Register</button>
+  <div class="top-buttons">
+    <button onclick="showTab('consentRegister')">Register</button>
+    <button onclick="showTab('consentLogin')">Verify</button>
   </div>
 
-  <!-- Login Tab -->
+  <!-- Consent Register -->
+  <div id="consentRegister" class="tab active">
+    <h3>Consent Required</h3>
+    <p>We will use your device biometric (fingerprint/face) for authentication.</p>
+    <button class="primary" onclick="showTab('register')">I Agree</button>
+  </div>
+
+  <!-- Register -->
+  <div id="register" class="tab">
+    <h3>Register</h3>
+    <button class="primary" onclick="register()">Register Fingerprint</button>
+  </div>
+
+  <!-- Consent Login -->
+  <div id="consentLogin" class="tab">
+    <h3>Consent Required</h3>
+    <p>Authenticate using your registered biometric.</p>
+    <button class="primary" onclick="showTab('login')">I Agree</button>
+  </div>
+
+  <!-- Login -->
   <div id="login" class="tab">
-    <h3>Verify Fingerprint</h3>
-    <button onclick="login()">Verify</button>
-    <p id="status"></p>
+    <h3>Verify</h3>
+    <button class="primary" onclick="login()">Verify Fingerprint</button>
+    <div id="status" class="status"></div>
   </div>
 
-  <script>
-    function showTab(tabId) {
-      document.getElementById('register').classList.remove('active');
-      document.getElementById('login').classList.remove('active');
-      document.getElementById(tabId).classList.add('active');
+</div>
+
+<script>
+  function showTab(tabId) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+  }
+
+  function bufferToBase64(buffer) {
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  }
+
+  function base64ToBuffer(base64) {
+    const binary = atob(base64);
+    const buffer = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      buffer[i] = binary.charCodeAt(i);
+    }
+    return buffer;
+  }
+
+  // ✅ Browser support detection
+  async function checkSupport() {
+    const el = document.getElementById("support");
+
+    if (!window.PublicKeyCredential) {
+      el.innerHTML = "❌ WebAuthn not supported";
+      return;
     }
 
-    function bufferToBase64(buffer) {
-      return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    const available =
+      await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+
+    if (available) {
+      el.innerHTML = "✅ Biometric supported on this device";
+    } else {
+      el.innerHTML = "⚠️ No platform authenticator (fingerprint may not work)";
+    }
+  }
+
+  async function register() {
+    try {
+      const publicKey = {
+        challenge: new Uint8Array(32),
+        rp: { name: "POC App" },
+        user: {
+          id: new Uint8Array(16),
+          name: "user@test.com",
+          displayName: "User"
+        },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required"
+        },
+        timeout: 60000
+      };
+
+      const credential = await navigator.credentials.create({ publicKey });
+
+      const id = bufferToBase64(credential.rawId);
+      localStorage.setItem("credId", id);
+
+      alert("✅ Registered Successfully");
+    } catch (err) {
+      console.error(err);
+      alert("❌ Registration failed");
+    }
+  }
+
+  async function login() {
+    const status = document.getElementById("status");
+    const storedId = localStorage.getItem("credId");
+
+    if (!storedId) {
+      status.className = "status error";
+      status.innerText = "No credential found";
+      return;
     }
 
-    function base64ToBuffer(base64) {
-      const binary = atob(base64);
-      const buffer = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        buffer[i] = binary.charCodeAt(i);
-      }
-      return buffer;
+    try {
+      const publicKey = {
+        challenge: new Uint8Array(32),
+        allowCredentials: [
+          {
+            id: base64ToBuffer(storedId),
+            type: "public-key"
+          }
+        ],
+        userVerification: "required",
+        timeout: 60000
+      };
+
+      status.className = "status info";
+      status.innerText = "Touch fingerprint sensor...";
+
+      await navigator.credentials.get({ publicKey });
+
+      status.className = "status success";
+      status.innerText = "✅ Verified Successfully";
+    } catch (err) {
+      console.error(err);
+      status.className = "status error";
+      status.innerText = "❌ Verification failed";
     }
+  }
 
-    async function register() {
-      try {
-        const publicKey = {
-          challenge: new Uint8Array(32),
-          rp: { name: "POC App" },
-          user: {
-            id: new Uint8Array(16),
-            name: "user@test.com",
-            displayName: "User"
-          },
-          pubKeyCredParams: [{ type: "public-key", alg: -7 }],
-          authenticatorSelection: {
-            authenticatorAttachment: "platform",
-            userVerification: "required"
-          },
-          timeout: 60000
-        };
-
-        const credential = await navigator.credentials.create({ publicKey });
-
-        const id = bufferToBase64(credential.rawId);
-        localStorage.setItem("credId", id);
-
-        alert("✅ Fingerprint Registered!");
-      } catch (err) {
-        console.error(err);
-        alert("❌ Registration failed");
-      }
-    }
-
-    async function login() {
-      const status = document.getElementById("status");
-      const storedId = localStorage.getItem("credId");
-
-      if (!storedId) {
-        status.innerText = "❌ Please register first";
-        return;
-      }
-
-      try {
-        const publicKey = {
-          challenge: new Uint8Array(32),
-          allowCredentials: [
-            {
-              id: base64ToBuffer(storedId),
-              type: "public-key"
-            }
-          ],
-          userVerification: "required",
-          timeout: 60000
-        };
-
-        status.innerText = "👉 Touch fingerprint sensor...";
-
-        const result = await navigator.credentials.get({ publicKey });
-
-        console.log(result);
-        status.innerText = "✅ Verified Successfully!";
-      } catch (err) {
-        console.error(err);
-        status.innerText = "❌ Verification failed";
-      }
-    }
-  </script>
+  checkSupport();
+</script>
 
 </body>
 </html>
