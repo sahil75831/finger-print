@@ -1,85 +1,47 @@
 <!DOCTYPE html>
 
-<html lang="en">
+<html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fingerprint POC</title>
 
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
     body {
-      margin: 0;
-      font-family: system-ui, sans-serif;
-      background: #0f172a;
-      color: white;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .tabs {
-      display: flex;
-    }
-
-    .tab {
-      flex: 1;
-      padding: 18px;
+      font-family: Arial;
       text-align: center;
-      background: #1e293b;
-      font-size: 16px;
-      cursor: pointer;
-    }
-
-    .tab.active {
-      background: #22c55e;
-      color: black;
-      font-weight: bold;
-    }
-
-    .content {
-      flex: 1;
-      display: none;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      padding: 20px;
-      text-align: center;
-    }
-
-    .content.active {
-      display: flex;
-    }
-
-    h2 {
-      margin-bottom: 20px;
+      margin-top: 40px;
     }
 
     button {
-      width: 100%;
-      max-width: 400px;
-      padding: 18px;
-      font-size: 18px;
-      border-radius: 12px;
-      border: none;
+      padding: 14px 20px;
+      margin: 10px;
+      font-size: 16px;
       cursor: pointer;
+      width: 80%;
+      max-width: 300px;
     }
 
-    .register-btn {
-      background: #f59e0b;
-      color: black;
+    .tab-btn {
+      padding: 12px;
+      cursor: pointer;
+      display: inline-block;
+      margin: 5px;
+      border: 1px solid #ccc;
     }
 
-    .verify-btn {
-      background: #22c55e;
-      color: black;
+    .active-tab {
+      background: #ddd;
+      font-weight: bold;
     }
 
-    #result {
+    .tab {
+      display: none;
       margin-top: 20px;
-      font-size: 18px;
+    }
+
+    .active {
+      display: block;
     }
   </style>
 
@@ -87,114 +49,128 @@
 
 <body>
 
+  <h2>🔐 Fingerprint (Passkey) POC</h2>
+
   <!-- Tabs -->
 
-  <div class="tabs">
-    <div class="tab active" onclick="switchTab('register')" id="tab-register">Register</div>
-    <div class="tab" onclick="switchTab('verify')" id="tab-verify">Verify</div>
+  <div>
+    <span id="tab-register" class="tab-btn active-tab" onclick="showTab('register')">Register</span>
+    <span id="tab-login" class="tab-btn" onclick="showTab('login')">Verify</span>
   </div>
 
-  <!-- Register Tab -->
+  <!-- Register -->
 
-  <div id="register" class="content active">
-    <h2>Register Fingerprint</h2>
-    <button class="register-btn" onclick="register()">Touch Fingerprint</button>
+  <div id="register" class="tab active">
+    <h3>Register Fingerprint</h3>
+    <button onclick="register()">Touch Fingerprint</button>
+    <p id="registerStatus"></p>
   </div>
 
-  <!-- Verify Tab -->
+  <!-- Verify -->
 
-  <div id="verify" class="content">
-    <h2>Verify Fingerprint</h2>
-    <button class="verify-btn" onclick="verify()">Confirm</button>
-    <div id="result"></div>
+  <div id="login" class="tab">
+    <h3>Verify Fingerprint</h3>
+    <button onclick="login()">Confirm</button>
+    <p id="status"></p>
   </div>
 
 <script>
-function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+function showTab(tabId) {
+  document.getElementById('register').classList.remove('active');
+  document.getElementById('login').classList.remove('active');
 
-  document.getElementById('tab-' + tab).classList.add('active');
-  document.getElementById(tab).classList.add('active');
+  document.getElementById('tab-register').classList.remove('active-tab');
+  document.getElementById('tab-login').classList.remove('active-tab');
+
+  document.getElementById(tabId).classList.add('active');
+
+  if (tabId === 'register') {
+    document.getElementById('tab-register').classList.add('active-tab');
+  } else {
+    document.getElementById('tab-login').classList.add('active-tab');
+  }
 }
 
-// REGISTER FLOW
+function bufferToBase64(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}
+
+function base64ToBuffer(base64) {
+  const binary = atob(base64);
+  const buffer = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    buffer[i] = binary.charCodeAt(i);
+  }
+  return buffer;
+}
+
+// REGISTER
 async function register() {
+  const statusEl = document.getElementById("registerStatus");
+
   try {
     const publicKey = {
       challenge: new Uint8Array(32),
-
-      rp: {
-        name: "Demo App"
-      },
-
+      rp: { name: "POC App" },
       user: {
         id: new Uint8Array(16),
         name: "user@test.com",
         displayName: "User"
       },
-
-      pubKeyCredParams: [
-        { type: "public-key", alg: -7 }
-      ],
-
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }],
       authenticatorSelection: {
         authenticatorAttachment: "platform",
         userVerification: "required"
       },
-
-      timeout: 60000,
-      attestation: "none"
+      timeout: 60000
     };
 
     const credential = await navigator.credentials.create({ publicKey });
 
-    const credId = btoa(
-      String.fromCharCode(...new Uint8Array(credential.rawId))
-    );
+    const id = bufferToBase64(credential.rawId);
+    localStorage.setItem("credId", id);
 
-    localStorage.setItem("credId", credId);
+    statusEl.innerText = "✅ Registered successfully";
 
-    alert("✅ Fingerprint Registered");
-
-    // AUTO SWITCH
-    switchTab('verify');
+    // ✅ AUTO SWITCH TO VERIFY TAB
+    showTab('login');
 
   } catch (err) {
-    alert("❌ " + err.message);
+    statusEl.innerText = "❌ Registration failed";
   }
 }
 
-// VERIFY FLOW
-async function verify() {
+// VERIFY
+async function login() {
+  const status = document.getElementById("status");
+  const storedId = localStorage.getItem("credId");
+
+  if (!storedId) {
+    status.innerText = "❌ Please register first";
+    return;
+  }
+
   try {
-    const stored = localStorage.getItem("credId");
-
-    if (!stored) {
-      alert("No credential found");
-      return;
-    }
-
     const publicKey = {
       challenge: new Uint8Array(32),
-
       allowCredentials: [
         {
-          id: Uint8Array.from(atob(stored), c => c.charCodeAt(0)),
+          id: base64ToBuffer(storedId),
           type: "public-key"
         }
       ],
-
       userVerification: "required",
       timeout: 60000
     };
 
+    status.innerText = "👉 Touch fingerprint sensor...";
+
     await navigator.credentials.get({ publicKey });
 
-    document.getElementById("result").innerText = "✅ Verified Successfully";
+    status.innerText = "✅ Verified Successfully";
 
   } catch (err) {
-    document.getElementById("result").innerText = "❌ Verification Failed";
+    status.innerText = "❌ Verification failed";
   }
 }
 </script>
